@@ -1,4 +1,4 @@
-//go:generate go run ../codegen/generate_read.go -- .
+//go:generate go run ../codegen/gen_packet_codec.go -- .
 package packet
 
 import (
@@ -13,10 +13,10 @@ type Packet interface {
 
 // @gen
 type HandshakePacket struct {
-	ProtocolVersion int32 `field:"VarInt"`
-	ServerAddr      string
-	ServerPort      uint16
-	RequestType     int32 `field:"VarInt"`
+	ProtocolVersion int32  `field:"VarInt"`
+	ServerAddr      string `field:"String"`
+	ServerPort      uint16 `field:"UnsignedShort"`
+	RequestType     int32  `field:"VarInt"`
 }
 
 func (p HandshakePacket) ID() int32 {
