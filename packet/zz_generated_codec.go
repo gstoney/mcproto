@@ -5,6 +5,19 @@ import (
 	"io"
 )
 
+// Source: login.go
+var LoginServerboundRegistry = map[int32]func() Packet{
+	0: func() Packet { return &LoginStart{} },
+	1: func() Packet { return &EncryptionResponse{} },
+	3: func() Packet { return &LoginAcknowledge{} },
+}
+var LoginClientboundRegistry = map[int32]func() Packet{
+	0: func() Packet { return &LoginDisconnect{} },
+	1: func() Packet { return &EncryptionRequest{} },
+	2: func() Packet { return &LoginSuccess{} },
+	3: func() Packet { return &SetCompression{} },
+}
+
 func (p LoginStart) Encode(w io.Writer) (err error) {
 	if err = WriteString(w, p.Name); err != nil { return }
 	if err = WriteUUID(w, p.PlayerUUID); err != nil { return }
@@ -89,20 +102,13 @@ func (p *SetCompression) Decode(r io.Reader) (err error) {
 	return nil
 }
 
-func (p HandshakePacket) Encode(w io.Writer) (err error) {
-	if err = WriteVarInt(w, p.ProtocolVersion); err != nil { return }
-	if err = WriteString(w, p.ServerAddr); err != nil { return }
-	if err = WriteUnsignedShort(w, p.ServerPort); err != nil { return }
-	if err = WriteVarInt(w, p.RequestType); err != nil { return }
-	return
+// Source: status.go
+var StatusServerboundRegistry = map[int32]func() Packet{
+	0: func() Packet { return &StatusReqPacket{} },
+	1: func() Packet { return &PingReqPacket{} },
 }
-
-func (p *HandshakePacket) Decode(r io.Reader) (err error) {
-	if p.ProtocolVersion, err = ReadVarInt(r); err != nil { return }
-	if p.ServerAddr, err = ReadString(r); err != nil { return }
-	if p.ServerPort, err = ReadUnsignedShort(r); err != nil { return }
-	if p.RequestType, err = ReadVarInt(r); err != nil { return }
-	return nil
+var StatusClientboundRegistry = map[int32]func() Packet{
+	0: func() Packet { return &StatusRespPacket{} },
 }
 
 func (p StatusReqPacket) Encode(w io.Writer) (err error) {

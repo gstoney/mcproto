@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// @gen
+// @gen:r,w,regserver
 type LoginStart struct {
 	Name       string    `field:"String"`
 	PlayerUUID uuid.UUID `field:"UUID"`
@@ -16,7 +16,7 @@ func (p LoginStart) ID() int32 {
 	return 0
 }
 
-// @gen
+// @gen:r,w,regserver
 type EncryptionResponse struct {
 	SharedSecret []byte `field:"PrefixedArray" inner:"Byte"`
 	VerifyToken  []byte `field:"PrefixedArray" inner:"Byte"`
@@ -26,14 +26,14 @@ func (p EncryptionResponse) ID() int32 {
 	return 1
 }
 
-// @gen
+// @gen:r,w,regserver
 type LoginAcknowledge struct{}
 
 func (p LoginAcknowledge) ID() int32 {
 	return 3
 }
 
-// @gen
+// @gen:r,w,regclient
 type LoginDisconnect struct {
 	Reason string `field:"String"` // JSON Text Component
 }
@@ -42,7 +42,7 @@ func (p LoginDisconnect) ID() int32 {
 	return 0
 }
 
-// @gen
+// @gen:r,w,regclient
 type EncryptionRequest struct {
 	ServerID    string `field:"String"`
 	PublicKey   []byte `field:"PrefixedArray" inner:"Byte"`
@@ -84,7 +84,7 @@ func readGameProfileProperty(r io.Reader) (v gameProfileProperty, err error) {
 	return
 }
 
-// @gen
+// @gen:r,w,regclient
 type LoginSuccess struct {
 	UUID              uuid.UUID             `field:"UUID"`
 	Username          string                `field:"String"`
@@ -96,7 +96,7 @@ func (p LoginSuccess) ID() int32 {
 	return 2
 }
 
-// @gen
+// @gen:r,w,regclient
 type SetCompression struct {
 	Threshold int32 `field:"VarInt"`
 }
