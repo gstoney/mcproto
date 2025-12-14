@@ -1,6 +1,8 @@
 package mcproto
 
 import (
+	"bytes"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -9,9 +11,13 @@ import (
 	"github.com/gstoney/mcproto/packet"
 )
 
+var ErrPacketTooBig = errors.New("packet too big")
+var ErrUnknownPacketId = errors.New("unknown packet id")
+
 type TransportConfig struct {
-	readTO  time.Duration
-	writeTO time.Duration
+	ReadTO       time.Duration
+	WriteTO      time.Duration
+	MaxPacketLen int32
 }
 
 // Transport is given a raw net.Conn to deal with compression, encryption
@@ -44,10 +50,74 @@ func NewTransport(conn net.Conn, cfg TransportConfig) Transport {
 	}
 }
 
-func (t *Transport) Recv() (packet.Packet, error) {
-	panic("not implemented")
+func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
+	t.recvMu.Lock()
+	defer t.recvMu.Unlock()
+
+	if t.cfg.ReadTO > 0 {
+		t.conn.SetReadDeadline(time.Now().Add(t.cfg.ReadTO))
+	}
+
+	packetLen, err := packet.ReadVarInt(t.reader)
+	if err != nil {
+		return nil, err
+	}
+
+	if packetLen > t.cfg.MaxPacketLen {
+		return nil, ErrPacketTooBig
+	}
+
+	buf := make([]byte, packetLen)
+	_, err = io.ReadFull(t.reader, buf)
+	if err != nil {
+		return nil, err
+	}
+	reader := bytes.NewReader(buf)
+
+	if t.compressionThreshold >= 0 {
+		panic("not implemented")
+	}
+
+	id, err := packet.ReadVarInt(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	build := reg[id]
+	if build == nil {
+		return nil, ErrUnknownPacketId
+	}
+
+	p := build()
+	err = p.Decode(reader)
+
+	return p, err
 }
 
 func (t *Transport) Send(p packet.Packet) error {
-	panic("not implemented")
+	t.sendMu.Lock()
+	defer t.sendMu.Unlock()
+
+	if t.cfg.WriteTO > 0 {
+		t.conn.SetWriteDeadline(time.Now().Add(t.cfg.WriteTO))
+	}
+
+	buf := bytes.NewBuffer(make([]byte, 0))
+	err := p.Encode(buf)
+	if err != nil {
+		return err
+	}
+
+	lenbuf := bytes.NewBuffer(make([]byte, 0, 5))
+	err = packet.WriteVarInt(lenbuf, int32(buf.Len()))
+	if err != nil {
+		return err
+	}
+
+	_, err = lenbuf.WriteTo(t.writer)
+	if err != nil {
+		return err
+	}
+	_, err = buf.WriteTo(t.writer)
+	return err
 }

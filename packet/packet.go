@@ -5,6 +5,8 @@ import (
 	"io"
 )
 
+type Registry map[int32]func() Packet
+
 type Packet interface {
 	ID() int32
 	Encode(w io.Writer) error
