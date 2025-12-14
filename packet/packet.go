@@ -11,7 +11,7 @@ type Packet interface {
 	Decode(r io.Reader) error
 }
 
-// @gen
+// @gen:r,w
 type HandshakePacket struct {
 	ProtocolVersion int32  `field:"VarInt"`
 	ServerAddr      string `field:"String"`

@@ -294,6 +294,7 @@ var {{.RegistryPrefix}}ClientboundRegistry = map[int32]func() Packet{
 {{range .Structs}}
 {{- if .GenWrite}}
 func (p {{.Name}}) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 {{- range .Fields}}
 	{{- if .WriteFn}}
 	if err = Write{{.FieldType}}(w, p.{{.Name}}, {{.WriteFn}}); err != nil { return }

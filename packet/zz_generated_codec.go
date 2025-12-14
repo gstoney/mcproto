@@ -19,6 +19,7 @@ var LoginClientboundRegistry = map[int32]func() Packet{
 }
 
 func (p LoginStart) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	if err = WriteString(w, p.Name); err != nil { return }
 	if err = WriteUUID(w, p.PlayerUUID); err != nil { return }
 	return
@@ -31,6 +32,7 @@ func (p *LoginStart) Decode(r io.Reader) (err error) {
 }
 
 func (p EncryptionResponse) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	if err = WritePrefixedArray(w, p.SharedSecret, WriteByte); err != nil { return }
 	if err = WritePrefixedArray(w, p.VerifyToken, WriteByte); err != nil { return }
 	return
@@ -43,6 +45,7 @@ func (p *EncryptionResponse) Decode(r io.Reader) (err error) {
 }
 
 func (p LoginAcknowledge) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	return
 }
 
@@ -51,6 +54,7 @@ func (p *LoginAcknowledge) Decode(r io.Reader) (err error) {
 }
 
 func (p LoginDisconnect) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	if err = WriteString(w, p.Reason); err != nil { return }
 	return
 }
@@ -61,6 +65,7 @@ func (p *LoginDisconnect) Decode(r io.Reader) (err error) {
 }
 
 func (p EncryptionRequest) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	if err = WriteString(w, p.ServerID); err != nil { return }
 	if err = WritePrefixedArray(w, p.PublicKey, WriteByte); err != nil { return }
 	if err = WritePrefixedArray(w, p.VerifyToken, WriteByte); err != nil { return }
@@ -77,6 +82,7 @@ func (p *EncryptionRequest) Decode(r io.Reader) (err error) {
 }
 
 func (p LoginSuccess) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	if err = WriteUUID(w, p.UUID); err != nil { return }
 	if err = WriteString(w, p.Username); err != nil { return }
 	if err = WritePrefixedArray(w, p.Properties, writeGameProfileProperty); err != nil { return }
@@ -93,12 +99,32 @@ func (p *LoginSuccess) Decode(r io.Reader) (err error) {
 }
 
 func (p SetCompression) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	if err = WriteVarInt(w, p.Threshold); err != nil { return }
 	return
 }
 
 func (p *SetCompression) Decode(r io.Reader) (err error) {
 	if p.Threshold, err = ReadVarInt(r); err != nil { return }
+	return nil
+}
+
+// Source: packet.go
+
+func (p HandshakePacket) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
+	if err = WriteVarInt(w, p.ProtocolVersion); err != nil { return }
+	if err = WriteString(w, p.ServerAddr); err != nil { return }
+	if err = WriteUnsignedShort(w, p.ServerPort); err != nil { return }
+	if err = WriteVarInt(w, p.RequestType); err != nil { return }
+	return
+}
+
+func (p *HandshakePacket) Decode(r io.Reader) (err error) {
+	if p.ProtocolVersion, err = ReadVarInt(r); err != nil { return }
+	if p.ServerAddr, err = ReadString(r); err != nil { return }
+	if p.ServerPort, err = ReadUnsignedShort(r); err != nil { return }
+	if p.RequestType, err = ReadVarInt(r); err != nil { return }
 	return nil
 }
 
@@ -112,6 +138,7 @@ var StatusClientboundRegistry = map[int32]func() Packet{
 }
 
 func (p StatusReqPacket) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	return
 }
 
@@ -120,6 +147,7 @@ func (p *StatusReqPacket) Decode(r io.Reader) (err error) {
 }
 
 func (p PingReqPacket) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	if err = WriteLong(w, p.Timestamp); err != nil { return }
 	return
 }
@@ -130,6 +158,7 @@ func (p *PingReqPacket) Decode(r io.Reader) (err error) {
 }
 
 func (p StatusRespPacket) Encode(w io.Writer) (err error) {
+	if err = WriteVarInt(w, p.ID()); err != nil { return }
 	if err = WriteString(w, p.Response); err != nil { return }
 	return
 }
