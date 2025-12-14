@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gardenstoney/mcproto/packet"
+	"github.com/gstoney/mcproto/packet"
 )
 
 type TransportConfig struct {
