@@ -1,4 +1,4 @@
-package server
+package mcproto
 
 import (
 	"io"
@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gardenstoney/mc-go/packet"
+	"github.com/gardenstoney/mcproto/packet"
 )
 
 type TransportConfig struct {

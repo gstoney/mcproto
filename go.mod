@@ -1,4 +1,4 @@
-module github.com/gardenstoney/mc-go
+module github.com/gardenstoney/mcproto
 
 go 1.24.1
 
