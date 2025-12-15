@@ -78,7 +78,7 @@ var varintTc = []TestCase[int32]{
 	},
 	{
 		desc:      "Unexpected EOF",
-		expectErr: io.EOF,
+		expectErr: io.ErrUnexpectedEOF,
 		v:         2147483647,
 		ser:       []byte{0xff, 0xff, 0xff, 0xff},
 	},
@@ -109,10 +109,10 @@ func TestReadVarInt(t *testing.T) {
 	for _, tC := range varintTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := bytes.NewReader(tC.ser)
+			r := NewFrameReader(tC.ser)
 
 			// Assume ReadVarInt reads from the io.Reader and returns the decoded int32 and an error
-			got, err := ReadVarInt(r)
+			got, err := ReadVarInt(&r)
 
 			if tC.expectErr != nil {
 				if err == nil {
@@ -133,8 +133,8 @@ func TestReadVarInt(t *testing.T) {
 			}
 
 			// Ensure the reader consumed exactly all expected bytes (tC.ser)
-			if r.Len() != 0 {
-				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Len())
+			if r.Remaining() != 0 {
+				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Remaining())
 			}
 		})
 	}
@@ -163,13 +163,13 @@ var stringTc = []TestCase[string]{
 	},
 	{
 		desc:      "Read fail: EOF on length VarInt (Length is 0x80)",
-		expectErr: io.EOF,
+		expectErr: io.ErrUnexpectedEOF,
 		v:         "",
 		ser:       []byte{0x80}, // Missing the second byte of the VarInt length (e.g., length 128)
 	},
 	{
 		desc:      "Read fail: EOF reading string content",
-		expectErr: io.ErrUnexpectedEOF, // io.EOF when no bytes are read, io.ErrUnexpectedEOF when EOF after reading some bytes.
+		expectErr: io.ErrUnexpectedEOF,
 		v:         "",
 		ser:       []byte{0x05, 0x48, 0x65, 0x6c}, // Length 5 (0x05), but only 3 bytes of data follow
 	},
@@ -206,9 +206,9 @@ func TestReadString(t *testing.T) {
 	for _, tC := range stringTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := bytes.NewReader(tC.ser)
+			r := NewFrameReader(tC.ser)
 
-			got, err := ReadString(r)
+			got, err := ReadString(&r)
 
 			if tC.expectErr != nil {
 				if err == nil {
@@ -229,8 +229,8 @@ func TestReadString(t *testing.T) {
 			}
 
 			// Ensure the reader consumed exactly all expected bytes (tC.ser)
-			if r.Len() != 0 {
-				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Len())
+			if r.Remaining() != 0 {
+				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Remaining())
 			}
 		})
 	}
@@ -254,12 +254,12 @@ var pArrayTc = []TestCase[[]byte]{
 	},
 	{
 		desc:      "Read fail: EOF on length VarInt (Length is 0x80)",
-		expectErr: io.EOF,
+		expectErr: io.ErrUnexpectedEOF,
 		ser:       []byte{0x80}, // Missing the second byte of the VarInt length (e.g., length 128)
 	},
 	{
 		desc:      "Read fail: EOF reading array elements",
-		expectErr: io.EOF,
+		expectErr: io.ErrUnexpectedEOF,
 		v:         []byte{10, 20, 30},   // Expected array, but stream will be incomplete
 		ser:       []byte{0x03, 10, 20}, // Length 3 (0x03), but only 2 bytes of data follow
 	},
@@ -290,9 +290,9 @@ func TestReadPrefixedArray(t *testing.T) {
 	for _, tC := range pArrayTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := bytes.NewReader(tC.ser)
+			r := NewFrameReader(tC.ser)
 
-			got, err := ReadPrefixedArray(r, ReadByte)
+			got, err := ReadPrefixedArray(&r, ReadByte)
 
 			if tC.expectErr != nil {
 				if err == nil {
@@ -313,8 +313,8 @@ func TestReadPrefixedArray(t *testing.T) {
 			}
 
 			// Ensure the reader consumed exactly all expected bytes (tC.ser)
-			if r.Len() != 0 {
-				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Len())
+			if r.Remaining() != 0 {
+				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Remaining())
 			}
 		})
 	}
@@ -333,12 +333,12 @@ var optionalTc = []TestCase[Optional[byte]]{
 	},
 	{
 		desc:      "Read fail: EOF on Boolean prefix",
-		expectErr: io.EOF,
+		expectErr: io.ErrUnexpectedEOF,
 		ser:       []byte{},
 	},
 	{
 		desc:      "Read fail: EOF reading Item when Exists is true",
-		expectErr: io.EOF,
+		expectErr: io.ErrUnexpectedEOF,
 		ser:       []byte{0x01}, // True (0x01), but no item byte follows
 	},
 }
@@ -368,9 +368,9 @@ func TestReadOptional(t *testing.T) {
 	for _, tC := range optionalTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := bytes.NewReader(tC.ser)
+			r := NewFrameReader(tC.ser)
 
-			got, err := ReadOptional(r, ReadByte)
+			got, err := ReadOptional(&r, ReadByte)
 
 			if tC.expectErr != nil {
 				if err == nil {
@@ -395,8 +395,8 @@ func TestReadOptional(t *testing.T) {
 			}
 
 			// Ensure the reader consumed exactly all expected bytes (tC.ser)
-			if r.Len() != 0 {
-				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Len())
+			if r.Remaining() != 0 {
+				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Remaining())
 			}
 		})
 	}
