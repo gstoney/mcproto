@@ -10,7 +10,7 @@ type Registry map[int32]func() Packet
 type Packet interface {
 	ID() int32
 	Encode(w io.Writer) error
-	Decode(r io.Reader) error
+	Decode(r *FrameReader) error
 }
 
 // @gen:r,w

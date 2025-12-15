@@ -306,7 +306,7 @@ func (p {{.Name}}) Encode(w io.Writer) (err error) {
 }
 {{- end}}
 {{if .GenRead}}
-func (p *{{.Name}}) Decode(r io.Reader) (err error) {
+func (p *{{.Name}}) Decode(r *FrameReader) (err error) {
 {{- range .Fields}}
 	{{- if .ReadFn}}
 	if p.{{.Name}}, err = Read{{.FieldType}}(r, {{.ReadFn}}); err != nil { return }

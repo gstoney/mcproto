@@ -58,7 +58,7 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 		t.conn.SetReadDeadline(time.Now().Add(t.cfg.ReadTO))
 	}
 
-	packetLen, err := packet.ReadVarInt(t.reader)
+	packetLen, err := packet.ReadVarIntFromReader(t.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +72,13 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 	if err != nil {
 		return nil, err
 	}
-	reader := bytes.NewReader(buf)
+	reader := packet.NewFrameReader(buf)
 
 	if t.compressionThreshold >= 0 {
 		panic("not implemented")
 	}
 
-	id, err := packet.ReadVarInt(reader)
+	id, err := packet.ReadVarInt(&reader)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 	}
 
 	p := build()
-	err = p.Decode(reader)
+	err = p.Decode(&reader)
 
 	return p, err
 }

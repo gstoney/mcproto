@@ -25,7 +25,7 @@ func (p LoginStart) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *LoginStart) Decode(r io.Reader) (err error) {
+func (p *LoginStart) Decode(r *FrameReader) (err error) {
 	if p.Name, err = ReadString(r); err != nil { return }
 	if p.PlayerUUID, err = ReadUUID(r); err != nil { return }
 	return nil
@@ -38,7 +38,7 @@ func (p EncryptionResponse) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *EncryptionResponse) Decode(r io.Reader) (err error) {
+func (p *EncryptionResponse) Decode(r *FrameReader) (err error) {
 	if p.SharedSecret, err = ReadPrefixedArray(r, ReadByte); err != nil { return }
 	if p.VerifyToken, err = ReadPrefixedArray(r, ReadByte); err != nil { return }
 	return nil
@@ -49,7 +49,7 @@ func (p LoginAcknowledge) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *LoginAcknowledge) Decode(r io.Reader) (err error) {
+func (p *LoginAcknowledge) Decode(r *FrameReader) (err error) {
 	return nil
 }
 
@@ -59,7 +59,7 @@ func (p LoginDisconnect) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *LoginDisconnect) Decode(r io.Reader) (err error) {
+func (p *LoginDisconnect) Decode(r *FrameReader) (err error) {
 	if p.Reason, err = ReadString(r); err != nil { return }
 	return nil
 }
@@ -73,7 +73,7 @@ func (p EncryptionRequest) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *EncryptionRequest) Decode(r io.Reader) (err error) {
+func (p *EncryptionRequest) Decode(r *FrameReader) (err error) {
 	if p.ServerID, err = ReadString(r); err != nil { return }
 	if p.PublicKey, err = ReadPrefixedArray(r, ReadByte); err != nil { return }
 	if p.VerifyToken, err = ReadPrefixedArray(r, ReadByte); err != nil { return }
@@ -90,7 +90,7 @@ func (p LoginSuccess) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *LoginSuccess) Decode(r io.Reader) (err error) {
+func (p *LoginSuccess) Decode(r *FrameReader) (err error) {
 	if p.UUID, err = ReadUUID(r); err != nil { return }
 	if p.Username, err = ReadString(r); err != nil { return }
 	if p.Properties, err = ReadPrefixedArray(r, readGameProfileProperty); err != nil { return }
@@ -104,7 +104,7 @@ func (p SetCompression) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *SetCompression) Decode(r io.Reader) (err error) {
+func (p *SetCompression) Decode(r *FrameReader) (err error) {
 	if p.Threshold, err = ReadVarInt(r); err != nil { return }
 	return nil
 }
@@ -120,7 +120,7 @@ func (p HandshakePacket) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *HandshakePacket) Decode(r io.Reader) (err error) {
+func (p *HandshakePacket) Decode(r *FrameReader) (err error) {
 	if p.ProtocolVersion, err = ReadVarInt(r); err != nil { return }
 	if p.ServerAddr, err = ReadString(r); err != nil { return }
 	if p.ServerPort, err = ReadUnsignedShort(r); err != nil { return }
@@ -142,7 +142,7 @@ func (p StatusReqPacket) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *StatusReqPacket) Decode(r io.Reader) (err error) {
+func (p *StatusReqPacket) Decode(r *FrameReader) (err error) {
 	return nil
 }
 
@@ -152,7 +152,7 @@ func (p PingReqPacket) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *PingReqPacket) Decode(r io.Reader) (err error) {
+func (p *PingReqPacket) Decode(r *FrameReader) (err error) {
 	if p.Timestamp, err = ReadLong(r); err != nil { return }
 	return nil
 }
@@ -163,7 +163,7 @@ func (p StatusRespPacket) Encode(w io.Writer) (err error) {
 	return
 }
 
-func (p *StatusRespPacket) Decode(r io.Reader) (err error) {
+func (p *StatusRespPacket) Decode(r *FrameReader) (err error) {
 	if p.Response, err = ReadString(r); err != nil { return }
 	return nil
 }
