@@ -13,6 +13,7 @@ import (
 
 var ErrPacketTooBig = errors.New("packet too big")
 var ErrUnknownPacketId = errors.New("unknown packet id")
+var ErrTrailingData = errors.New("trailing data")
 
 type TransportConfig struct {
 	ReadTO               time.Duration
@@ -92,6 +93,10 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 
 	p := build()
 	err = p.Decode(&t.pReader)
+
+	if err == nil && t.pReader.Remaining() > 0 {
+		err = ErrTrailingData
+	}
 
 	return p, err
 }
