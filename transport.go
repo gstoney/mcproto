@@ -163,6 +163,7 @@ func (t *Transport) Send(p packet.Packet) error {
 	return err
 }
 
+// io.Reader wrapper to enforce packet bound limit and provide realignment method
 type frameReader struct {
 	src       io.Reader
 	remaining int32

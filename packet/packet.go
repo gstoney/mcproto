@@ -7,9 +7,14 @@ import (
 
 type Registry map[int32]func() Packet
 
+// Reader interface for packet decoding.
+//
+// The slice returned by Read is only valid until the next call to Read or ReadByte.
 type Reader interface {
 	Read(n int) ([]byte, error)
 	ReadByte() (byte, error)
+
+	// Remaining returns the number of unread bytes remaining in the packet payload.
 	Remaining() int
 }
 
