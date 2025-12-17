@@ -7,6 +7,40 @@ import (
 	"testing"
 )
 
+type testReader struct {
+	buf []byte
+	off int
+}
+
+func newTestReader(buf []byte) testReader {
+	return testReader{
+		buf: buf,
+		off: 0,
+	}
+}
+
+func (r *testReader) Read(n int) ([]byte, error) {
+	if r.off+n > len(r.buf) {
+		return nil, io.ErrUnexpectedEOF
+	}
+	b := r.buf[r.off : r.off+n]
+	r.off += n
+	return b, nil
+}
+
+func (r *testReader) ReadByte() (byte, error) {
+	if r.off >= len(r.buf) {
+		return 0, io.ErrUnexpectedEOF
+	}
+	b := r.buf[r.off]
+	r.off++
+	return b, nil
+}
+
+func (r testReader) Remaining() int {
+	return len(r.buf) - r.off
+}
+
 type TestCase[T any] struct {
 	desc      string
 	expectErr error
@@ -109,7 +143,7 @@ func TestReadVarInt(t *testing.T) {
 	for _, tC := range varintTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := NewFrameReader(tC.ser)
+			r := newTestReader(tC.ser)
 
 			// Assume ReadVarInt reads from the io.Reader and returns the decoded int32 and an error
 			got, err := ReadVarInt(&r)
@@ -206,7 +240,7 @@ func TestReadString(t *testing.T) {
 	for _, tC := range stringTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := NewFrameReader(tC.ser)
+			r := newTestReader(tC.ser)
 
 			got, err := ReadString(&r)
 
@@ -290,7 +324,7 @@ func TestReadPrefixedArray(t *testing.T) {
 	for _, tC := range pArrayTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := NewFrameReader(tC.ser)
+			r := newTestReader(tC.ser)
 
 			got, err := ReadPrefixedArray(&r, ReadByte)
 
@@ -368,7 +402,7 @@ func TestReadOptional(t *testing.T) {
 	for _, tC := range optionalTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := NewFrameReader(tC.ser)
+			r := newTestReader(tC.ser)
 
 			got, err := ReadOptional(&r, ReadByte)
 

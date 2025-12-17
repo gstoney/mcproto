@@ -71,7 +71,7 @@ func writeGameProfileProperty(w io.Writer, v gameProfileProperty) (err error) {
 	return
 }
 
-func readGameProfileProperty(r *FrameReader) (v gameProfileProperty, err error) {
+func readGameProfileProperty(r Reader) (v gameProfileProperty, err error) {
 	v.Name, err = ReadString(r)
 	if err != nil {
 		return

@@ -7,10 +7,16 @@ import (
 
 type Registry map[int32]func() Packet
 
+type Reader interface {
+	Read(n int) ([]byte, error)
+	ReadByte() (byte, error)
+	Remaining() int
+}
+
 type Packet interface {
 	ID() int32
 	Encode(w io.Writer) error
-	Decode(r *FrameReader) error
+	Decode(r Reader) error
 }
 
 // @gen:r,w

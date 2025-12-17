@@ -72,7 +72,7 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 	if err != nil {
 		return nil, err
 	}
-	reader := packet.NewFrameReader(buf)
+	reader := newPayloadReader(buf)
 
 	if t.compressionThreshold >= 0 {
 		panic("not implemented")
@@ -120,4 +120,38 @@ func (t *Transport) Send(p packet.Packet) error {
 	}
 	_, err = buf.WriteTo(t.writer)
 	return err
+}
+
+type payloadReader struct {
+	buf []byte
+	off int
+}
+
+func newPayloadReader(buf []byte) payloadReader {
+	return payloadReader{
+		buf: buf,
+		off: 0,
+	}
+}
+
+func (r *payloadReader) Read(n int) ([]byte, error) {
+	if r.off+n > len(r.buf) {
+		return nil, io.ErrUnexpectedEOF
+	}
+	b := r.buf[r.off : r.off+n]
+	r.off += n
+	return b, nil
+}
+
+func (r *payloadReader) ReadByte() (byte, error) {
+	if r.off >= len(r.buf) {
+		return 0, io.ErrUnexpectedEOF
+	}
+	b := r.buf[r.off]
+	r.off++
+	return b, nil
+}
+
+func (r payloadReader) Remaining() int {
+	return len(r.buf) - r.off
 }

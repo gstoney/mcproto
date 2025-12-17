@@ -9,7 +9,7 @@ import (
 )
 
 type WriteFn[T any] func(io.Writer, T) error
-type ReadFn[T any] func(*FrameReader) (T, error)
+type ReadFn[T any] func(Reader) (T, error)
 
 func WriteBoolean(w io.Writer, v bool) (err error) {
 	b := byte(0)
@@ -21,7 +21,7 @@ func WriteBoolean(w io.Writer, v bool) (err error) {
 	return
 }
 
-func ReadBoolean(r *FrameReader) (v bool, err error) {
+func ReadBoolean(r Reader) (v bool, err error) {
 	b, err := r.ReadByte()
 	if err != nil {
 		return
@@ -43,7 +43,7 @@ func WriteByte(w io.Writer, v byte) (err error) {
 	return
 }
 
-func ReadByte(r *FrameReader) (v byte, err error) {
+func ReadByte(r Reader) (v byte, err error) {
 	b, err := r.ReadByte()
 	return b, err
 }
@@ -52,7 +52,7 @@ func WriteUnsignedShort(w io.Writer, v uint16) (err error) {
 	return binary.Write(w, binary.BigEndian, v)
 }
 
-func ReadUnsignedShort(r *FrameReader) (v uint16, err error) {
+func ReadUnsignedShort(r Reader) (v uint16, err error) {
 	b, err := r.Read(2)
 	if err != nil {
 		return
@@ -66,7 +66,7 @@ func WriteInt(w io.Writer, v int32) (err error) {
 	return binary.Write(w, binary.BigEndian, v)
 }
 
-func ReadInt(r *FrameReader) (v int32, err error) {
+func ReadInt(r Reader) (v int32, err error) {
 	b, err := r.Read(4)
 	if err != nil {
 		return
@@ -80,7 +80,7 @@ func WriteLong(w io.Writer, v int64) (err error) {
 	return binary.Write(w, binary.BigEndian, v)
 }
 
-func ReadLong(r *FrameReader) (v int64, err error) {
+func ReadLong(r Reader) (v int64, err error) {
 	b, err := r.Read(8)
 	if err != nil {
 		return
@@ -135,7 +135,7 @@ func ReadVarIntFromReader(r io.Reader) (int32, error) {
 	return v, ErrVarIntTooLong
 }
 
-func ReadVarInt(r *FrameReader) (int32, error) {
+func ReadVarInt(r Reader) (int32, error) {
 	var v int32
 	var shift uint
 
@@ -168,7 +168,7 @@ func WriteString(w io.Writer, v string) (err error) {
 	return
 }
 
-func ReadString(r *FrameReader) (v string, err error) {
+func ReadString(r Reader) (v string, err error) {
 	length := int32(0)
 	length, err = ReadVarInt(r)
 	if err != nil {
@@ -201,7 +201,7 @@ func WritePosition(w io.Writer, v Position) (err error) {
 	return
 }
 
-func ReadPosition(r *FrameReader) (v Position, err error) {
+func ReadPosition(r Reader) (v Position, err error) {
 	b, err := r.Read(8)
 	if err != nil {
 		return
@@ -220,7 +220,7 @@ func WriteUUID(w io.Writer, v uuid.UUID) (err error) {
 	return
 }
 
-func ReadUUID(r *FrameReader) (v uuid.UUID, err error) {
+func ReadUUID(r Reader) (v uuid.UUID, err error) {
 	b, err := r.Read(16)
 	if err != nil {
 		return
@@ -245,7 +245,7 @@ func WritePrefixedArray[T any](w io.Writer, v []T, write WriteFn[T]) (err error)
 	return
 }
 
-func ReadPrefixedArray[T any](r *FrameReader, read ReadFn[T]) (v []T, err error) {
+func ReadPrefixedArray[T any](r Reader, read ReadFn[T]) (v []T, err error) {
 	length := int32(0)
 	if length, err = ReadVarInt(r); err != nil {
 		return
@@ -284,7 +284,7 @@ func WriteOptional[T any](w io.Writer, v Optional[T], write WriteFn[T]) (err err
 	return
 }
 
-func ReadOptional[T any](r *FrameReader, read ReadFn[T]) (v Optional[T], err error) {
+func ReadOptional[T any](r Reader, read ReadFn[T]) (v Optional[T], err error) {
 	if v.Exists, err = ReadBoolean(r); err != nil {
 		return
 	}
