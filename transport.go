@@ -20,6 +20,8 @@ type TransportConfig struct {
 	WriteTO              time.Duration
 	MaxPacketLen         int32
 	MaxRetainedBufferLen int32
+	MaxDecompressedLen   int32
+	RecoverTrailingData  bool
 }
 
 // Transport is given a raw net.Conn to deal with compression, encryption
@@ -31,6 +33,7 @@ type Transport struct {
 	reader io.Reader
 	writer io.Writer
 
+	fReader frameReader
 	pReader payloadReader
 
 	sendMu sync.Mutex
@@ -75,11 +78,35 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 		return nil, ErrPacketTooBig
 	}
 
+	t.fReader.Reset(t.reader, packetLen)
+
+	compressed := false
+	decompressedLen := int32(0)
+
 	if t.compressionThreshold >= 0 {
-		panic("not implemented")
+		decompressedLen, err = packet.ReadVarIntFromReader(&t.fReader)
+		if err != nil {
+			return nil, err
+		}
+
+		if decompressedLen > 0 {
+			if decompressedLen > t.cfg.MaxDecompressedLen {
+				return nil, ErrPacketTooBig
+			}
+
+			compressed = true
+			panic("not implemented")
+
+		} else if decompressedLen < 0 {
+			return nil, errors.New("invalid data length")
+		}
 	}
 
-	t.pReader.Reset(t.reader, packetLen)
+	if compressed {
+		panic("not implemented")
+	} else {
+		t.pReader.Reset(&t.fReader, t.fReader.Remaining())
+	}
 
 	id, err := packet.ReadVarInt(&t.pReader)
 	if err != nil {
@@ -94,8 +121,15 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 	p := build()
 	err = p.Decode(&t.pReader)
 
-	if err == nil && t.pReader.Remaining() > 0 {
-		err = ErrTrailingData
+	if err == nil {
+		if t.fReader.Remaining() > 0 {
+			err = ErrTrailingData
+			if t.cfg.RecoverTrailingData {
+				t.fReader.SkipRemaining()
+			}
+		} else if t.pReader.Remaining() > 0 {
+			err = ErrTrailingData
+		}
 	}
 
 	return p, err
@@ -127,6 +161,45 @@ func (t *Transport) Send(p packet.Packet) error {
 	}
 	_, err = buf.WriteTo(t.writer)
 	return err
+}
+
+type frameReader struct {
+	src       io.Reader
+	remaining int32
+}
+
+func (r *frameReader) Reset(src io.Reader, n int32) {
+	r.src = src
+	r.remaining = n
+}
+
+func (r *frameReader) Read(p []byte) (n int, err error) {
+	if r.remaining <= 0 {
+		return 0, io.EOF
+	}
+	if int32(len(p)) >= r.remaining {
+		p = p[0:r.remaining]
+	}
+	n, err = r.src.Read(p)
+	r.remaining -= int32(n)
+	return
+}
+
+func (r *frameReader) SkipRemaining() (int, error) {
+	n, err := io.CopyN(io.Discard, r.src, int64(r.remaining))
+	r.remaining -= int32(n)
+
+	if err != nil {
+		if err == io.EOF {
+			return int(n), io.ErrUnexpectedEOF
+		}
+		return int(n), err
+	}
+	return int(n), nil
+}
+
+func (r *frameReader) Remaining() int32 {
+	return r.remaining
 }
 
 // Fully buffered reader implementing packet.Reader
