@@ -29,6 +29,8 @@ type Transport struct {
 	reader io.Reader
 	writer io.Writer
 
+	pReader payloadReader
+
 	sendMu sync.Mutex
 	recvMu sync.Mutex
 
@@ -67,18 +69,13 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 		return nil, ErrPacketTooBig
 	}
 
-	buf := make([]byte, packetLen)
-	_, err = io.ReadFull(t.reader, buf)
-	if err != nil {
-		return nil, err
-	}
-	reader := newPayloadReader(buf)
-
 	if t.compressionThreshold >= 0 {
 		panic("not implemented")
 	}
 
-	id, err := packet.ReadVarInt(&reader)
+	t.pReader.Reset(t.reader, packetLen)
+
+	id, err := packet.ReadVarInt(&t.pReader)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +86,7 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 	}
 
 	p := build()
-	err = p.Decode(&reader)
+	err = p.Decode(&t.pReader)
 
 	return p, err
 }
@@ -127,11 +124,19 @@ type payloadReader struct {
 	off int
 }
 
-func newPayloadReader(buf []byte) payloadReader {
-	return payloadReader{
-		buf: buf,
-		off: 0,
+func (r *payloadReader) Reset(src io.Reader, n int32) error {
+	if int32(cap(r.buf)) < n {
+		r.buf = make([]byte, n)
 	}
+	r.buf = r.buf[:n]
+
+	_, err := io.ReadFull(src, r.buf)
+	if err != nil {
+		return err
+	}
+
+	r.off = 0
+	return nil
 }
 
 func (r *payloadReader) Read(n int) ([]byte, error) {
