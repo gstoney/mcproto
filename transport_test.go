@@ -9,6 +9,11 @@ import (
 	"github.com/gstoney/mcproto/packet"
 )
 
+var cfg = TransportConfig{
+	MaxPacketLen:         1024,
+	MaxRetainedBufferLen: 8096,
+}
+
 type TestCase struct {
 	desc      string
 	expectErr error
@@ -45,9 +50,7 @@ func testRecv(tc TestCase) func(*testing.T) {
 			reader:               r,
 			compressionThreshold: -1,
 			encryption:           false,
-			cfg: TransportConfig{
-				MaxPacketLen: 1024,
-			},
+			cfg:                  cfg,
 		}
 
 		got, err := tr.Recv(tc.reg)
@@ -90,6 +93,7 @@ func testSend(tc TestCase) func(*testing.T) {
 			writer:               w,
 			compressionThreshold: -1,
 			encryption:           false,
+			cfg:                  cfg,
 		}
 
 		err := tr.Send(tc.v)
@@ -135,11 +139,7 @@ var statusResp = []byte{
 func BenchmarkRecv(b *testing.B) {
 	r := bytes.NewReader(statusResp)
 
-	t := NewTransport(nil,
-		TransportConfig{
-			MaxPacketLen: 1024,
-		},
-	)
+	t := NewTransport(nil, cfg)
 
 	t.reader = r
 
@@ -159,11 +159,7 @@ func BenchmarkSend(b *testing.B) {
 		Response: "{\"version\":{\"name\":\"Paper 1.21.10\",\"protocol\":773},\"description\":\"A Minecraft Server\",\"players\":{\"max\":20,\"online\":0}}",
 	}
 
-	t := NewTransport(nil,
-		TransportConfig{
-			MaxPacketLen: 1024,
-		},
-	)
+	t := NewTransport(nil, cfg)
 
 	w := bytes.NewBuffer(make([]byte, 0, 1024))
 	t.writer = w

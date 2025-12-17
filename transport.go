@@ -15,9 +15,10 @@ var ErrPacketTooBig = errors.New("packet too big")
 var ErrUnknownPacketId = errors.New("unknown packet id")
 
 type TransportConfig struct {
-	ReadTO       time.Duration
-	WriteTO      time.Duration
-	MaxPacketLen int32
+	ReadTO               time.Duration
+	WriteTO              time.Duration
+	MaxPacketLen         int32
+	MaxRetainedBufferLen int32
 }
 
 // Transport is given a raw net.Conn to deal with compression, encryption
@@ -43,13 +44,17 @@ type Transport struct {
 }
 
 func NewTransport(conn net.Conn, cfg TransportConfig) Transport {
-	return Transport{
+	t := Transport{
 		conn:                 conn,
 		reader:               conn,
 		writer:               conn,
 		compressionThreshold: -1,
 		cfg:                  cfg,
 	}
+
+	t.pReader.MaxRetained = cfg.MaxRetainedBufferLen
+
+	return t
 }
 
 func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
@@ -119,18 +124,34 @@ func (t *Transport) Send(p packet.Packet) error {
 	return err
 }
 
+// Fully buffered reader implementing packet.Reader
+//
+// A temporary buffer will be allocated when Resetted with n
+// exceeding MaxRetained. The temporary buffer can be around
+// until Resetted with n smaller than MaxRetained.
 type payloadReader struct {
-	buf []byte
+	buf []byte // retained buffer
+	cur []byte // current buffer
 	off int
+
+	MaxRetained int32 // maximum length of retained buffer
 }
 
 func (r *payloadReader) Reset(src io.Reader, n int32) error {
-	if int32(cap(r.buf)) < n {
-		r.buf = make([]byte, n)
+	if r.MaxRetained > 0 && n > r.MaxRetained {
+		// exceeded limit: use temporary buffer
+		if int32(cap(r.cur)) < n {
+			r.cur = make([]byte, n)
+		}
+		r.cur = r.cur[:n]
+	} else {
+		if int32(cap(r.buf)) < n {
+			r.buf = make([]byte, n)
+		}
+		r.cur = r.buf[:n]
 	}
-	r.buf = r.buf[:n]
 
-	_, err := io.ReadFull(src, r.buf)
+	_, err := io.ReadFull(src, r.cur)
 	if err != nil {
 		return err
 	}
@@ -140,23 +161,23 @@ func (r *payloadReader) Reset(src io.Reader, n int32) error {
 }
 
 func (r *payloadReader) Read(n int) ([]byte, error) {
-	if r.off+n > len(r.buf) {
+	if r.off+n > len(r.cur) {
 		return nil, io.ErrUnexpectedEOF
 	}
-	b := r.buf[r.off : r.off+n]
+	b := r.cur[r.off : r.off+n]
 	r.off += n
 	return b, nil
 }
 
 func (r *payloadReader) ReadByte() (byte, error) {
-	if r.off >= len(r.buf) {
+	if r.off >= len(r.cur) {
 		return 0, io.ErrUnexpectedEOF
 	}
-	b := r.buf[r.off]
+	b := r.cur[r.off]
 	r.off++
 	return b, nil
 }
 
 func (r payloadReader) Remaining() int {
-	return len(r.buf) - r.off
+	return len(r.cur) - r.off
 }
