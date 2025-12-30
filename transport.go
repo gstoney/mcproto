@@ -24,9 +24,9 @@ type TransportConfig struct {
 	RecoverTrailingData  bool
 }
 
-// Transport is given a raw net.Conn to deal with compression, encryption
-// and parsing into packet structs.
-// Also enforces timeouts and more.
+// Transport provides synchronous read and write access to a framed stream,
+// with compression and encryption handled internally.
+// Transport does not deserialize packets.
 type Transport struct {
 	conn net.Conn
 
