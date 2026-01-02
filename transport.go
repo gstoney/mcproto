@@ -128,28 +128,26 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 	return p, err
 }
 
-func (t *Transport) Send(p packet.Packet) error {
+func (t *Transport) Send(b []byte) error {
 	if t.cfg.WriteTO > 0 {
 		t.conn.SetWriteDeadline(time.Now().Add(t.cfg.WriteTO))
 	}
 
-	buf := bytes.NewBuffer(make([]byte, 0))
-	err := p.Encode(buf)
+	lenbuf := bytes.NewBuffer(make([]byte, 0, 5))
+	err := packet.WriteVarInt(lenbuf, int32(len(b)))
 	if err != nil {
 		return err
 	}
 
-	lenbuf := bytes.NewBuffer(make([]byte, 0, 5))
-	err = packet.WriteVarInt(lenbuf, int32(buf.Len()))
-	if err != nil {
-		return err
+	if t.compressionThreshold >= 0 {
+		panic("not implemented")
 	}
 
 	_, err = lenbuf.WriteTo(t.writer)
 	if err != nil {
 		return err
 	}
-	_, err = buf.WriteTo(t.writer)
+	_, err = t.writer.Write(b)
 	return err
 }
 
