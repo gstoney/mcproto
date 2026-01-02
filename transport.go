@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/gstoney/mcproto/packet"
@@ -24,7 +23,7 @@ type TransportConfig struct {
 	RecoverTrailingData  bool
 }
 
-// Transport provides synchronous read and write access to a framed stream,
+// Transport provides read and write access to a framed stream,
 // with compression and encryption handled internally.
 // Transport does not deserialize packets.
 type Transport struct {
@@ -35,9 +34,6 @@ type Transport struct {
 
 	fReader frameReader
 	pReader payloadReader
-
-	sendMu sync.Mutex
-	recvMu sync.Mutex
 
 	// States
 	compressionThreshold int
@@ -62,9 +58,6 @@ func NewTransport(conn net.Conn, cfg TransportConfig) Transport {
 }
 
 func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
-	t.recvMu.Lock()
-	defer t.recvMu.Unlock()
-
 	if t.cfg.ReadTO > 0 {
 		t.conn.SetReadDeadline(time.Now().Add(t.cfg.ReadTO))
 	}
@@ -136,9 +129,6 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 }
 
 func (t *Transport) Send(p packet.Packet) error {
-	t.sendMu.Lock()
-	defer t.sendMu.Unlock()
-
 	if t.cfg.WriteTO > 0 {
 		t.conn.SetWriteDeadline(time.Now().Add(t.cfg.WriteTO))
 	}
