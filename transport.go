@@ -32,7 +32,7 @@ type Transport struct {
 	reader io.Reader
 	writer io.Writer
 
-	fReader frameReader
+	fReader FrameReader
 	pReader payloadReader
 
 	// States
@@ -48,6 +48,7 @@ func NewTransport(conn net.Conn, cfg TransportConfig) Transport {
 		conn:                 conn,
 		reader:               conn,
 		writer:               conn,
+		fReader:              FrameReader{conn, 0},
 		compressionThreshold: -1,
 		cfg:                  cfg,
 	}
@@ -62,16 +63,14 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 		t.conn.SetReadDeadline(time.Now().Add(t.cfg.ReadTO))
 	}
 
-	packetLen, err := packet.ReadVarIntFromReader(t.reader)
+	frameLength, err := t.fReader.Next()
 	if err != nil {
 		return nil, err
 	}
 
-	if packetLen > t.cfg.MaxPacketLen {
+	if frameLength > t.cfg.MaxPacketLen {
 		return nil, ErrPacketTooBig
 	}
-
-	t.fReader.Reset(t.reader, packetLen)
 
 	compressed := false
 	decompressedLen := int32(0)
@@ -118,7 +117,7 @@ func (t *Transport) Recv(reg packet.Registry) (packet.Packet, error) {
 		if t.fReader.Remaining() > 0 {
 			err = ErrTrailingData
 			if t.cfg.RecoverTrailingData {
-				t.fReader.SkipRemaining()
+				t.fReader.Skip()
 			}
 		} else if t.pReader.Remaining() > 0 {
 			err = ErrTrailingData
@@ -149,46 +148,6 @@ func (t *Transport) Send(b []byte) error {
 	}
 	_, err = t.writer.Write(b)
 	return err
-}
-
-// io.Reader wrapper to enforce packet bound limit and provide realignment method
-type frameReader struct {
-	src       io.Reader
-	remaining int32
-}
-
-func (r *frameReader) Reset(src io.Reader, n int32) {
-	r.src = src
-	r.remaining = n
-}
-
-func (r *frameReader) Read(p []byte) (n int, err error) {
-	if r.remaining <= 0 {
-		return 0, io.EOF
-	}
-	if int32(len(p)) >= r.remaining {
-		p = p[0:r.remaining]
-	}
-	n, err = r.src.Read(p)
-	r.remaining -= int32(n)
-	return
-}
-
-func (r *frameReader) SkipRemaining() (int, error) {
-	n, err := io.CopyN(io.Discard, r.src, int64(r.remaining))
-	r.remaining -= int32(n)
-
-	if err != nil {
-		if err == io.EOF {
-			return int(n), io.ErrUnexpectedEOF
-		}
-		return int(n), err
-	}
-	return int(n), nil
-}
-
-func (r *frameReader) Remaining() int32 {
-	return r.remaining
 }
 
 // Fully buffered reader implementing packet.Reader
