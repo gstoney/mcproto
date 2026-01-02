@@ -2,6 +2,7 @@ package mcproto
 
 import (
 	"bytes"
+	"compress/zlib"
 	"errors"
 	"io"
 	"net"
@@ -29,6 +30,7 @@ type Transport struct {
 	writer io.Writer
 
 	fReader FrameReader
+	zReader io.ReadCloser
 
 	// States
 	compressionThreshold int
@@ -80,7 +82,16 @@ func (t *Transport) Recv() (r PayloadReader, err error) {
 				return nil, ErrPacketTooBig
 			}
 
-			panic("not implemented")
+			if t.zReader == nil {
+				t.zReader, err = zlib.NewReader(&t.fReader)
+			} else {
+				err = t.zReader.(zlib.Resetter).Reset(&t.fReader, nil)
+			}
+			if err != nil {
+				return nil, err
+			}
+
+			r = &compressedPayload{t.zReader, &t.fReader, decompressedLen}
 
 		} else if decompressedLen < 0 {
 			return nil, errors.New("invalid data length")

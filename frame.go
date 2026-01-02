@@ -7,7 +7,12 @@ import (
 	"github.com/gstoney/mcproto/packet"
 )
 
-var ErrNotExhausted = errors.New("not exhausted")
+var (
+	ErrNotExhausted        = errors.New("not exhausted")
+	ErrZlibPayloadOverrun  = errors.New("zlib stream exceeds declared payload length")
+	ErrZlibPayloadUnderrun = errors.New("zlib stream shorter than declared payload length")
+	ErrZlibTrailingData    = errors.New("trailing data in frame after zlib stream ends")
+)
 
 // FrameReader wraps a source reader to provide bounded access to one frame at a time.
 // It ensures packet frame alignment.
@@ -90,4 +95,62 @@ func (p plainPayload) Close() (err error) {
 
 func (p plainPayload) Discard() (n int32, err error) {
 	return p.Skip()
+}
+
+type compressedPayload struct {
+	zr        io.ReadCloser
+	fr        *FrameReader
+	remaining int32
+}
+
+func (p *compressedPayload) Read(b []byte) (n int, err error) {
+	if p.remaining <= 0 {
+		return 0, io.EOF
+	}
+	if int32(len(b)) > p.remaining {
+		b = b[0:p.remaining]
+	}
+	n, err = p.zr.Read(b)
+	p.remaining -= int32(n)
+
+	if err != nil {
+		if err == io.EOF && p.remaining > 0 {
+			err = ErrZlibPayloadUnderrun
+		}
+	}
+	return
+}
+
+func (p *compressedPayload) Skip() (n int32, err error) {
+	n64, err := io.CopyN(io.Discard, p, int64(p.remaining))
+	n = int32(n64)
+	return
+}
+
+func (p *compressedPayload) Discard() (n int32, err error) {
+	p.remaining = 0
+	return p.fr.Skip()
+}
+
+func (p *compressedPayload) Close() (err error) {
+	if p.remaining > 0 {
+		return ErrNotExhausted
+	}
+
+	var buf [1]byte
+	n, err := p.zr.Read(buf[:])
+	if err == nil || n > 0 {
+		return ErrZlibPayloadOverrun
+	} else if err != io.EOF {
+		return err
+	}
+
+	if p.fr.remaining > 0 {
+		return ErrZlibTrailingData
+	}
+	return p.zr.Close()
+}
+
+func (p *compressedPayload) Remaining() int32 {
+	return p.remaining
 }
