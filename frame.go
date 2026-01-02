@@ -57,3 +57,37 @@ func (f *FrameReader) Skip() (n int32, err error) {
 func (f *FrameReader) Remaining() int32 {
 	return f.remaining
 }
+
+// PayloadReader provides access to a single packet's payload.
+//
+// Read returns payload bytes. Remaining reports unread payload bytes.
+//
+// Skip discards remaining payload bytes, enabling validation on Close.
+//
+// Close validates payload exhaustion and frame integrity, returning an error
+// if the payload was not fully consumed or the frame is malformed.
+// Close does not realign on error.
+//
+// Discard abandons the current frame and realigns to the next frame boundary.
+// Use Discard to recover from malformed frames or when validation is not needed.
+type PayloadReader interface {
+	io.ReadCloser
+	Skip() (n int32, err error)
+	Discard() (n int32, err error)
+	Remaining() int32
+}
+
+type plainPayload struct {
+	*FrameReader
+}
+
+func (p plainPayload) Close() (err error) {
+	if p.remaining > 0 {
+		err = ErrNotExhausted
+	}
+	return
+}
+
+func (p plainPayload) Discard() (n int32, err error) {
+	return p.Skip()
+}
