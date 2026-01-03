@@ -5,8 +5,6 @@ import (
 	"compress/zlib"
 	"errors"
 	"io"
-	"net"
-	"time"
 
 	"github.com/gstoney/mcproto/packet"
 )
@@ -14,8 +12,6 @@ import (
 var ErrPacketTooBig = errors.New("packet too big")
 
 type TransportConfig struct {
-	ReadTO             time.Duration
-	WriteTO            time.Duration
 	MaxPacketLen       int32
 	MaxDecompressedLen int32
 }
@@ -24,8 +20,6 @@ type TransportConfig struct {
 // with compression and encryption handled internally.
 // Transport does not deserialize packets.
 type Transport struct {
-	conn net.Conn
-
 	reader io.Reader
 	writer io.Writer
 
@@ -40,12 +34,11 @@ type Transport struct {
 	cfg TransportConfig
 }
 
-func NewTransport(conn net.Conn, cfg TransportConfig) Transport {
+func NewTransport(r io.Reader, w io.Writer, cfg TransportConfig) Transport {
 	t := Transport{
-		conn:                 conn,
-		reader:               conn,
-		writer:               conn,
-		fReader:              FrameReader{conn, 0},
+		reader:               r,
+		writer:               w,
+		fReader:              FrameReader{r, 0},
 		compressionThreshold: -1,
 		cfg:                  cfg,
 	}
@@ -54,10 +47,6 @@ func NewTransport(conn net.Conn, cfg TransportConfig) Transport {
 }
 
 func (t *Transport) Recv() (r PayloadReader, err error) {
-	if t.cfg.ReadTO > 0 {
-		t.conn.SetReadDeadline(time.Now().Add(t.cfg.ReadTO))
-	}
-
 	frameLength, err := t.fReader.Next()
 	if err != nil {
 		return nil, err
@@ -102,10 +91,6 @@ func (t *Transport) Recv() (r PayloadReader, err error) {
 }
 
 func (t *Transport) Send(b []byte) error {
-	if t.cfg.WriteTO > 0 {
-		t.conn.SetWriteDeadline(time.Now().Add(t.cfg.WriteTO))
-	}
-
 	lenbuf := bytes.NewBuffer(make([]byte, 0, 5))
 	err := packet.WriteVarInt(lenbuf, int32(len(b)))
 	if err != nil {
