@@ -27,7 +27,7 @@ type Transport struct {
 	zReader io.ReadCloser
 
 	// States
-	compressionThreshold int
+	CompressionThreshold int
 	encryption           bool
 	encryptionSecret     []byte
 
@@ -39,7 +39,7 @@ func NewTransport(r io.Reader, w io.Writer, cfg TransportConfig) Transport {
 		reader:               r,
 		writer:               w,
 		fReader:              FrameReader{r, 0},
-		compressionThreshold: -1,
+		CompressionThreshold: -1,
 		cfg:                  cfg,
 	}
 
@@ -60,7 +60,7 @@ func (t *Transport) Recv() (r PayloadReader, err error) {
 
 	decompressedLen := int32(0)
 
-	if t.compressionThreshold >= 0 {
+	if t.CompressionThreshold >= 0 {
 		decompressedLen, err = packet.ReadVarIntFromReader(&t.fReader)
 		if err != nil {
 			return nil, err
@@ -97,7 +97,7 @@ func (t *Transport) Send(b []byte) error {
 		return err
 	}
 
-	if t.compressionThreshold >= 0 {
+	if t.CompressionThreshold >= 0 {
 		panic("not implemented")
 	}
 
@@ -107,4 +107,11 @@ func (t *Transport) Send(b []byte) error {
 	}
 	_, err = t.writer.Write(b)
 	return err
+}
+
+func (t *Transport) EnableEncryption(secret []byte) {
+	t.encryptionSecret = secret
+	t.encryption = true
+
+	panic("not implemented")
 }
