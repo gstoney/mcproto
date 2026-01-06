@@ -112,30 +112,7 @@ func WriteVarInt(w io.Writer, v int32) error {
 	}
 }
 
-func ReadVarIntFromReader(r io.Reader) (int32, error) {
-	var v int32
-	var shift uint
-
-	for n := 0; n < 5; n++ {
-		var buf [1]byte
-		_, err := io.ReadFull(r, buf[:])
-		if err != nil {
-			return v, err
-		}
-
-		segment := buf[0] & 0x7F
-		v |= int32(segment) << shift
-
-		shift += 7
-
-		if (buf[0] & 0x80) == 0 {
-			return v, nil
-		}
-	}
-	return v, ErrVarIntTooLong
-}
-
-func ReadVarInt(r Reader) (int32, error) {
+func ReadVarInt(r io.ByteReader) (int32, error) {
 	var v int32
 	var shift uint
 

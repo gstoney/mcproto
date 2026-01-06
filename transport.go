@@ -1,6 +1,7 @@
 package mcproto
 
 import (
+	"bufio"
 	"bytes"
 	"compress/zlib"
 	"errors"
@@ -16,12 +17,22 @@ type TransportConfig struct {
 	MaxDecompressedLen int32
 }
 
+type byteReader interface {
+	io.Reader
+	io.ByteReader
+}
+
+type byteWriter interface {
+	io.Writer
+	io.ByteWriter
+}
+
 // Transport provides read and write access to a framed stream,
 // with compression and encryption handled internally.
 // Transport does not deserialize packets.
 type Transport struct {
-	reader io.Reader
-	writer io.Writer
+	reader byteReader
+	writer byteWriter
 
 	fReader FrameReader
 	zReader io.ReadCloser
@@ -34,11 +45,32 @@ type Transport struct {
 	cfg TransportConfig
 }
 
+// NewTransport creates a Transport.
+//
+// For readers/writers that perform syscalls (e.g. net.Conn), buffering is
+// required. Indicate buffered I/O by implementing io.ByteReader/io.ByteWriter.
+// If these interfaces are not implemented, the reader/writer will be wrapped
+// with bufio.
 func NewTransport(r io.Reader, w io.Writer, cfg TransportConfig) Transport {
+	var br byteReader
+	var bw byteWriter
+
+	if b, ok := r.(byteReader); ok {
+		br = b
+	} else if r != nil {
+		br = bufio.NewReader(r)
+	}
+
+	if b, ok := w.(byteWriter); ok {
+		bw = b
+	} else if w != nil {
+		bw = bufio.NewWriter(w)
+	}
+
 	t := Transport{
-		reader:               r,
-		writer:               w,
-		fReader:              FrameReader{r, 0},
+		reader:               br,
+		writer:               bw,
+		fReader:              FrameReader{br, 0},
 		CompressionThreshold: -1,
 		cfg:                  cfg,
 	}
@@ -61,7 +93,7 @@ func (t *Transport) Recv() (r PayloadReader, err error) {
 	decompressedLen := int32(0)
 
 	if t.CompressionThreshold >= 0 {
-		decompressedLen, err = packet.ReadVarIntFromReader(&t.fReader)
+		decompressedLen, err = packet.ReadVarInt(&t.fReader)
 		if err != nil {
 			return nil, err
 		}
@@ -106,6 +138,13 @@ func (t *Transport) Send(b []byte) error {
 		return err
 	}
 	_, err = t.writer.Write(b)
+	if err != nil {
+		return err
+	}
+
+	if bw, ok := t.writer.(*bufio.Writer); ok {
+		err = bw.Flush()
+	}
 	return err
 }
 

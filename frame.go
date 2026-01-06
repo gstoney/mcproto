@@ -17,7 +17,7 @@ var (
 // FrameReader wraps a source reader to provide bounded access to one frame at a time.
 // It ensures packet frame alignment.
 type FrameReader struct {
-	src       io.Reader
+	src       byteReader
 	remaining int32
 }
 
@@ -38,23 +38,16 @@ func (f *FrameReader) Read(p []byte) (n int, err error) {
 }
 
 func (f *FrameReader) ReadByte() (byte, error) {
-	if br, ok := f.src.(io.ByteReader); ok {
-		if f.remaining <= 0 {
-			return 0, io.EOF
-		}
-		v, err := br.ReadByte()
-		if err == nil {
-			f.remaining -= 1
-		} else if err == io.EOF && f.remaining > 0 {
-			err = io.ErrUnexpectedEOF
-		}
-		return v, err
+	if f.remaining <= 0 {
+		return 0, io.EOF
 	}
-
-	var b [1]byte
-	_, err := f.Read(b[:])
-
-	return b[0], err
+	v, err := f.src.ReadByte()
+	if err == nil {
+		f.remaining -= 1
+	} else if err == io.EOF && f.remaining > 0 {
+		err = io.ErrUnexpectedEOF
+	}
+	return v, err
 }
 
 func (f *FrameReader) Next() (length int32, err error) {
@@ -62,7 +55,7 @@ func (f *FrameReader) Next() (length int32, err error) {
 		return f.remaining, ErrNotExhausted
 	}
 
-	length, err = packet.ReadVarIntFromReader(f.src)
+	length, err = packet.ReadVarInt(f.src)
 	if err == nil {
 		if length > 0 {
 			f.remaining = length
