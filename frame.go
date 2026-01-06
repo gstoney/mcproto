@@ -37,6 +37,26 @@ func (f *FrameReader) Read(p []byte) (n int, err error) {
 	return
 }
 
+func (f *FrameReader) ReadByte() (byte, error) {
+	if br, ok := f.src.(io.ByteReader); ok {
+		if f.remaining <= 0 {
+			return 0, io.EOF
+		}
+		v, err := br.ReadByte()
+		if err == nil {
+			f.remaining -= 1
+		} else if err == io.EOF && f.remaining > 0 {
+			err = io.ErrUnexpectedEOF
+		}
+		return v, err
+	}
+
+	var b [1]byte
+	_, err := f.Read(b[:])
+
+	return b[0], err
+}
+
 func (f *FrameReader) Next() (length int32, err error) {
 	if f.remaining > 0 {
 		return f.remaining, ErrNotExhausted
