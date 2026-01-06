@@ -37,6 +37,9 @@ type Transport struct {
 	fReader FrameReader
 	zReader io.ReadCloser
 
+	zBuffer bytes.Buffer
+	zWriter *zlib.Writer
+
 	// States
 	CompressionThreshold int
 	encryption           bool
@@ -123,17 +126,47 @@ func (t *Transport) Recv() (r PayloadReader, err error) {
 }
 
 func (t *Transport) Send(b []byte) error {
-	lenbuf := bytes.NewBuffer(make([]byte, 0, 5))
-	err := packet.WriteVarInt(lenbuf, int32(len(b)))
-	if err != nil {
-		return err
-	}
+	length := len(b)
 
 	if t.CompressionThreshold >= 0 {
-		panic("not implemented")
+		if length >= t.CompressionThreshold {
+			t.zBuffer.Reset()
+			if t.zWriter == nil {
+				t.zWriter = zlib.NewWriter(&t.zBuffer)
+			} else {
+				t.zWriter.Reset(&t.zBuffer)
+			}
+			packet.WriteVarInt(&t.zBuffer, int32(length))
+
+			t.zWriter.Write(b)
+			t.zWriter.Close()
+
+			length = t.zBuffer.Len()
+			err := packet.WriteVarInt(t.writer, int32(length))
+			if err != nil {
+				return err
+			}
+			_, err = t.zBuffer.WriteTo(t.writer)
+			return err
+
+		} else {
+			length += 1
+
+			err := packet.WriteVarInt(t.writer, int32(length))
+			if err != nil {
+				return err
+			}
+			err = t.writer.WriteByte(0)
+			if err != nil {
+				return err
+			}
+
+			_, err = t.writer.Write(b)
+			return err
+		}
 	}
 
-	_, err = lenbuf.WriteTo(t.writer)
+	err := packet.WriteVarInt(t.writer, int32(length))
 	if err != nil {
 		return err
 	}
