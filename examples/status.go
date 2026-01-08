@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -66,7 +67,7 @@ func main() {
 	}
 
 	var resp packet.StatusRespPacket
-	var bufReader packet.BufferedReader
+	var bufReader bufio.Reader
 
 	r, err := t.Recv()
 	if err != nil {

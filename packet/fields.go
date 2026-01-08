@@ -13,11 +13,11 @@ type WriteFn[T any] func(Writer, T) error
 type ReadFn[T any] func(Reader) (T, error)
 
 func readN(r io.Reader, n int) (v []byte, err error) {
-	if zc, ok := r.(ZeroCopyReader); ok {
+	if zc, ok := r.(ZeroCopyReader); ok && zc.MaxCapacity() >= n {
 		v, err = zc.ReadN(n)
 		return
 	}
-	if br, ok := r.(*bufio.Reader); ok {
+	if br, ok := r.(*bufio.Reader); ok && br.Size() >= n {
 		v, err = br.Peek(n)
 		if err != nil {
 			return
