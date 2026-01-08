@@ -141,7 +141,7 @@ func WriteString(w io.Writer, v string) (err error) {
 	if err != nil {
 		return
 	}
-	_, err = w.Write([]byte(v))
+	_, err = io.WriteString(w, v)
 	return
 }
 
