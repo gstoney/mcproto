@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"net"
@@ -35,29 +36,60 @@ func main() {
 	}
 	defer conn.Close()
 
-	t := mcproto.NewTransport(conn,
+	t := mcproto.NewTransport(
+		conn,
+		conn,
 		mcproto.TransportConfig{
 			MaxPacketLen: 32768,
 		},
 	)
+	var buf bytes.Buffer
 
-	t.Send(&packet.HandshakePacket{
+	packet.HandshakePacket{
 		ProtocolVersion: int32(*proto),
 		ServerAddr:      hostname,
 		ServerPort:      uint16(port),
 		RequestType:     1,
-	})
+	}.Encode(&buf)
 
-	t.Send(&packet.StatusReqPacket{})
-
-	p, err := t.Recv(packet.StatusClientboundRegistry)
+	err = t.Send(buf.Bytes())
 	if err != nil {
 		panic(err)
 	}
 
-	resp, ok := p.(*packet.StatusRespPacket)
-	if !ok {
-		panic("unexpected response")
+	buf.Reset()
+	packet.StatusReqPacket{}.Encode(&buf)
+
+	err = t.Send(buf.Bytes())
+	if err != nil {
+		panic(err)
+	}
+
+	var resp packet.StatusRespPacket
+	var bufReader packet.BufferedReader
+
+	r, err := t.Recv()
+	if err != nil {
+		panic(err)
+	}
+
+	bufReader.Reset(r)
+	if v, err := packet.ReadVarInt(&bufReader); v != resp.ID() || err != nil {
+		panic("invalid resp")
+	}
+
+	err = resp.Decode(&bufReader)
+	if err != nil {
+		panic(err)
+	}
+
+	if bufReader.Buffered() > 0 {
+		panic("not fully decoded")
+	}
+
+	err = r.Close()
+	if err != nil {
+		panic(err)
 	}
 
 	fmt.Println(resp.Response)
