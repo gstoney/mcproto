@@ -7,44 +7,6 @@ import (
 	"testing"
 )
 
-type testReader struct {
-	buf []byte
-	off int
-}
-
-func newTestReader(buf []byte) testReader {
-	return testReader{
-		buf: buf,
-		off: 0,
-	}
-}
-
-func (r *testReader) Read(p []byte) (int, error) {
-	panic("not implemented")
-}
-
-func (r *testReader) ReadN(n int) ([]byte, error) {
-	if r.off+n > len(r.buf) {
-		return nil, io.ErrUnexpectedEOF
-	}
-	b := r.buf[r.off : r.off+n]
-	r.off += n
-	return b, nil
-}
-
-func (r *testReader) ReadByte() (byte, error) {
-	if r.off >= len(r.buf) {
-		return 0, io.ErrUnexpectedEOF
-	}
-	b := r.buf[r.off]
-	r.off++
-	return b, nil
-}
-
-func (r testReader) Remaining() int {
-	return len(r.buf) - r.off
-}
-
 type TestCase[T any] struct {
 	desc      string
 	expectErr error
@@ -147,10 +109,10 @@ func TestReadVarInt(t *testing.T) {
 	for _, tC := range varintTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := newTestReader(tC.ser)
+			r := bytes.NewReader(tC.ser)
 
 			// Assume ReadVarInt reads from the io.Reader and returns the decoded int32 and an error
-			got, err := ReadVarInt(&r)
+			got, err := ReadVarInt(r)
 
 			if tC.expectErr != nil {
 				if err == nil {
@@ -171,8 +133,8 @@ func TestReadVarInt(t *testing.T) {
 			}
 
 			// Ensure the reader consumed exactly all expected bytes (tC.ser)
-			if r.Remaining() != 0 {
-				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Remaining())
+			if r.Len() != 0 {
+				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Len())
 			}
 		})
 	}
@@ -244,9 +206,9 @@ func TestReadString(t *testing.T) {
 	for _, tC := range stringTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := newTestReader(tC.ser)
+			r := bytes.NewReader(tC.ser)
 
-			got, err := ReadString(&r)
+			got, err := ReadString(r)
 
 			if tC.expectErr != nil {
 				if err == nil {
@@ -267,8 +229,8 @@ func TestReadString(t *testing.T) {
 			}
 
 			// Ensure the reader consumed exactly all expected bytes (tC.ser)
-			if r.Remaining() != 0 {
-				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Remaining())
+			if r.Len() != 0 {
+				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Len())
 			}
 		})
 	}
@@ -328,9 +290,9 @@ func TestReadPrefixedArray(t *testing.T) {
 	for _, tC := range pArrayTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := newTestReader(tC.ser)
+			r := bytes.NewReader(tC.ser)
 
-			got, err := ReadPrefixedArray(&r, ReadByte)
+			got, err := ReadPrefixedArray(r, ReadByte)
 
 			if tC.expectErr != nil {
 				if err == nil {
@@ -351,8 +313,8 @@ func TestReadPrefixedArray(t *testing.T) {
 			}
 
 			// Ensure the reader consumed exactly all expected bytes (tC.ser)
-			if r.Remaining() != 0 {
-				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Remaining())
+			if r.Len() != 0 {
+				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Len())
 			}
 		})
 	}
@@ -371,7 +333,7 @@ var optionalTc = []TestCase[Optional[byte]]{
 	},
 	{
 		desc:      "Read fail: EOF on Boolean prefix",
-		expectErr: io.ErrUnexpectedEOF,
+		expectErr: io.EOF,
 		ser:       []byte{},
 	},
 	{
@@ -406,9 +368,9 @@ func TestReadOptional(t *testing.T) {
 	for _, tC := range optionalTc {
 		t.Run(tC.desc, func(t *testing.T) {
 			// Create a buffer initialized with the serialized bytes (tC.ser)
-			r := newTestReader(tC.ser)
+			r := bytes.NewReader(tC.ser)
 
-			got, err := ReadOptional(&r, ReadByte)
+			got, err := ReadOptional(r, ReadByte)
 
 			if tC.expectErr != nil {
 				if err == nil {
@@ -433,8 +395,8 @@ func TestReadOptional(t *testing.T) {
 			}
 
 			// Ensure the reader consumed exactly all expected bytes (tC.ser)
-			if r.Remaining() != 0 {
-				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Remaining())
+			if r.Len() != 0 {
+				t.Errorf("Reader did not consume all bytes. %d bytes remaining.", r.Len())
 			}
 		})
 	}
