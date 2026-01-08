@@ -1,8 +1,6 @@
 package packet
 
 import (
-	"io"
-
 	"github.com/google/uuid"
 )
 
@@ -60,7 +58,7 @@ type gameProfileProperty struct {
 	Signature Optional[string]
 }
 
-func writeGameProfileProperty(w io.Writer, v gameProfileProperty) (err error) {
+func writeGameProfileProperty(w Writer, v gameProfileProperty) (err error) {
 	if err = WriteString(w, v.Name); err != nil {
 		return
 	}

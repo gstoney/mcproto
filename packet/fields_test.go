@@ -19,7 +19,11 @@ func newTestReader(buf []byte) testReader {
 	}
 }
 
-func (r *testReader) Read(n int) ([]byte, error) {
+func (r *testReader) Read(p []byte) (int, error) {
+	panic("not implemented")
+}
+
+func (r *testReader) ReadN(n int) ([]byte, error) {
 	if r.off+n > len(r.buf) {
 		return nil, io.ErrUnexpectedEOF
 	}

@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -8,16 +9,36 @@ import (
 	"github.com/google/uuid"
 )
 
-type WriteFn[T any] func(io.Writer, T) error
+type WriteFn[T any] func(Writer, T) error
 type ReadFn[T any] func(Reader) (T, error)
 
-func WriteBoolean(w io.Writer, v bool) (err error) {
+func readN(r io.Reader, n int) (v []byte, err error) {
+	if zc, ok := r.(ZeroCopyReader); ok {
+		v, err = zc.ReadN(n)
+		return
+	}
+	if br, ok := r.(*bufio.Reader); ok {
+		v, err = br.Peek(n)
+		if err != nil {
+			return
+		}
+		// doesn't invalidate the slice in this case. (no fill call)
+		_, err = br.Discard(n)
+		return
+	}
+
+	v = make([]byte, n)
+	_, err = io.ReadFull(r, v)
+	return
+}
+
+func WriteBoolean(w Writer, v bool) (err error) {
 	b := byte(0)
 	if v {
 		b = 1
 	}
 
-	_, err = w.Write([]byte{b})
+	err = w.WriteByte(b)
 	return
 }
 
@@ -38,8 +59,8 @@ func ReadBoolean(r Reader) (v bool, err error) {
 	return
 }
 
-func WriteByte(w io.Writer, v byte) (err error) {
-	_, err = w.Write([]byte{v})
+func WriteByte(w Writer, v byte) (err error) {
+	err = w.WriteByte(v)
 	return
 }
 
@@ -48,12 +69,12 @@ func ReadByte(r Reader) (v byte, err error) {
 	return b, err
 }
 
-func WriteUnsignedShort(w io.Writer, v uint16) (err error) {
+func WriteUnsignedShort(w Writer, v uint16) (err error) {
 	return binary.Write(w, binary.BigEndian, v)
 }
 
 func ReadUnsignedShort(r Reader) (v uint16, err error) {
-	b, err := r.Read(2)
+	b, err := readN(r, 2)
 	if err != nil {
 		return
 	}
@@ -62,12 +83,12 @@ func ReadUnsignedShort(r Reader) (v uint16, err error) {
 	return
 }
 
-func WriteInt(w io.Writer, v int32) (err error) {
+func WriteInt(w Writer, v int32) (err error) {
 	return binary.Write(w, binary.BigEndian, v)
 }
 
 func ReadInt(r Reader) (v int32, err error) {
-	b, err := r.Read(4)
+	b, err := readN(r, 4)
 	if err != nil {
 		return
 	}
@@ -76,12 +97,12 @@ func ReadInt(r Reader) (v int32, err error) {
 	return
 }
 
-func WriteLong(w io.Writer, v int64) (err error) {
+func WriteLong(w Writer, v int64) (err error) {
 	return binary.Write(w, binary.BigEndian, v)
 }
 
 func ReadLong(r Reader) (v int64, err error) {
-	b, err := r.Read(8)
+	b, err := readN(r, 8)
 	if err != nil {
 		return
 	}
@@ -92,7 +113,7 @@ func ReadLong(r Reader) (v int64, err error) {
 
 var ErrVarIntTooLong = errors.New("VarInt is too long")
 
-func WriteVarInt(w io.Writer, v int32) error {
+func WriteVarInt(w Writer, v int32) error {
 	uv := uint32(v)
 	for i := 0; ; i++ {
 		b := byte(uv & 0x7F)
@@ -102,7 +123,7 @@ func WriteVarInt(w io.Writer, v int32) error {
 			b |= 0x80
 		}
 
-		if _, err := w.Write([]byte{b}); err != nil {
+		if err := w.WriteByte(b); err != nil {
 			return err
 		}
 
@@ -112,7 +133,7 @@ func WriteVarInt(w io.Writer, v int32) error {
 	}
 }
 
-func ReadVarInt(r io.ByteReader) (int32, error) {
+func ReadVarInt(r Reader) (int32, error) {
 	var v int32
 	var shift uint
 
@@ -136,7 +157,7 @@ func ReadVarInt(r io.ByteReader) (int32, error) {
 
 var ErrNegativeLength = errors.New("negative length")
 
-func WriteString(w io.Writer, v string) (err error) {
+func WriteString(w Writer, v string) (err error) {
 	err = WriteVarInt(w, int32(len(v)))
 	if err != nil {
 		return
@@ -157,8 +178,12 @@ func ReadString(r Reader) (v string, err error) {
 		return
 	}
 
-	buf, err := r.Read(int(length))
-	return string(buf), err
+	buf, err := readN(r, int(length))
+	v = string(buf)
+	if err != nil {
+		return
+	}
+	return
 }
 
 // Position's serialized form is composed of X, Z which are 26 bits each, and 12 bits of Y.
@@ -169,7 +194,7 @@ type Position struct {
 	Z int32
 }
 
-func WritePosition(w io.Writer, v Position) (err error) {
+func WritePosition(w Writer, v Position) (err error) {
 	packed := (uint64(v.X&0x3FFFFFF) << 38) |
 		(uint64(v.Z&0x3FFFFFF) << 12) |
 		(uint64(v.Y & 0xFFF))
@@ -179,7 +204,7 @@ func WritePosition(w io.Writer, v Position) (err error) {
 }
 
 func ReadPosition(r Reader) (v Position, err error) {
-	b, err := r.Read(8)
+	b, err := readN(r, 8)
 	if err != nil {
 		return
 	}
@@ -192,13 +217,13 @@ func ReadPosition(r Reader) (v Position, err error) {
 	return
 }
 
-func WriteUUID(w io.Writer, v uuid.UUID) (err error) {
+func WriteUUID(w Writer, v uuid.UUID) (err error) {
 	_, err = w.Write(v[:])
 	return
 }
 
 func ReadUUID(r Reader) (v uuid.UUID, err error) {
-	b, err := r.Read(16)
+	b, err := readN(r, 16)
 	if err != nil {
 		return
 	}
@@ -207,7 +232,7 @@ func ReadUUID(r Reader) (v uuid.UUID, err error) {
 	return
 }
 
-func WritePrefixedArray[T any](w io.Writer, v []T, write WriteFn[T]) (err error) {
+func WritePrefixedArray[T any](w Writer, v []T, write WriteFn[T]) (err error) {
 	err = WriteVarInt(w, int32(len(v)))
 	if err != nil {
 		return
@@ -249,7 +274,7 @@ type Optional[T any] struct {
 	Item   T
 }
 
-func WriteOptional[T any](w io.Writer, v Optional[T], write WriteFn[T]) (err error) {
+func WriteOptional[T any](w Writer, v Optional[T], write WriteFn[T]) (err error) {
 	err = WriteBoolean(w, v.Exists)
 	if err != nil {
 		return

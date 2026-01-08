@@ -8,12 +8,26 @@ import (
 
 type Registry map[int32]func() Packet
 
-// Reader interface for packet decoding.
+type ZeroCopyReader interface {
+	// ReadN provides a view into the buffer instead of copying.
+	//
+	// Should return io.EOF when the buffer is empty, and no bytes were read.
+	// Any partial read returns io.UnexpectedEOF.
+	ReadN(n int) ([]byte, error)
+}
+
+// Reader interface required for packet decoding.
 //
-// The slice returned by Read is only valid until the next call to Read or ReadByte.
+// Buffered readers can run on fast path when implementing ZeroCopyReader
 type Reader interface {
-	Read(n int) ([]byte, error)
-	ReadByte() (byte, error)
+	io.Reader
+	io.ByteReader
+}
+
+// Writer interface required for packet encoding.
+type Writer interface {
+	io.Writer
+	io.ByteWriter
 }
 
 const defaultBufferSize = 512
@@ -157,11 +171,22 @@ func (b *BufferedReader) view(n int) (v []byte, err error) {
 	return
 }
 
-// Read returns a slice into the internal buffer for n next bytes.
-// The returned slice is only valid until the next Read, ReadByte, or Reset call.
+func (b *BufferedReader) Read(p []byte) (n int, err error) {
+	v, err := b.view(len(p))
+	if err != nil {
+		return
+	}
+
+	n = copy(p, v)
+	b.r += n
+	return
+}
+
+// ReadN returns a slice into the internal buffer for n next bytes.
+// The returned slice is only valid until the next read, or Reset call.
 //
 // Attempting to read more than maxSize fails with ErrReadTooBig.
-func (b *BufferedReader) Read(n int) (v []byte, err error) {
+func (b *BufferedReader) ReadN(n int) (v []byte, err error) {
 	v, err = b.view(n)
 	if err == nil {
 		b.r += n
@@ -236,7 +261,7 @@ func (b *BufferedReader) Discard(n int) (discarded int, err error) {
 
 type Packet interface {
 	ID() int32
-	Encode(w io.Writer) error
+	Encode(w Writer) error
 	Decode(r Reader) error
 }
 
