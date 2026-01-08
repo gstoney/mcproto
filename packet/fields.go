@@ -140,6 +140,9 @@ func ReadVarInt(r Reader) (int32, error) {
 	for n := 0; n < 5; n++ {
 		b, err := r.ReadByte()
 		if err != nil {
+			if err == io.EOF {
+				err = io.ErrUnexpectedEOF
+			}
 			return v, err
 		}
 
@@ -180,8 +183,8 @@ func ReadString(r Reader) (v string, err error) {
 
 	buf, err := readN(r, int(length))
 	v = string(buf)
-	if err != nil {
-		return
+	if err == io.EOF {
+		err = io.ErrUnexpectedEOF
 	}
 	return
 }
@@ -257,6 +260,9 @@ func ReadPrefixedArray[T any](r Reader, read ReadFn[T]) (v []T, err error) {
 	for i := 0; i < int(length); i++ {
 		var item T
 		if item, err = read(r); err != nil {
+			if err == io.EOF {
+				err = io.ErrUnexpectedEOF
+			}
 			return
 		}
 		v[i] = item
@@ -293,6 +299,9 @@ func ReadOptional[T any](r Reader, read ReadFn[T]) (v Optional[T], err error) {
 
 	if v.Exists {
 		v.Item, err = read(r)
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
 	}
 	return
 }
